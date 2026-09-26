@@ -248,20 +248,34 @@ def set_aws_config_route():
 
 @app.post("/api/demo/trigger-load")
 def trigger_demo_load():
-    """Trigger CPU load on live demo app (Local or AWS VM)."""
-    target_url = request.args.get("url", "http://localhost:8080/load")
-    try:
-        res = requests.get(target_url, timeout=6)
-        return jsonify({
-            "success": True,
-            "message": f"CPU load triggered successfully on {target_url}",
-            "response": res.json()
-        })
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": f"Failed to contact demo app at {target_url}: {str(e)}"
-        }), 500
+    """Trigger CPU load on live demo app (Local Docker or AWS VM)."""
+    custom_url = request.args.get("url")
+    urls_to_try = [
+        custom_url,
+        "http://demo-app:8080/load",
+        "http://cloudguard-demo-app:8080/load",
+        "http://host.docker.internal:8080/load",
+        "http://localhost:8080/load"
+    ]
+    urls_to_try = [u for u in urls_to_try if u]
+
+    last_error = None
+    for url in urls_to_try:
+        try:
+            res = requests.get(url, timeout=6)
+            if res.status_code == 200:
+                return jsonify({
+                    "success": True,
+                    "message": f"CPU load triggered successfully on {url}",
+                    "response": res.json()
+                })
+        except Exception as e:
+            last_error = e
+
+    return jsonify({
+        "success": False,
+        "error": f"Failed to contact demo app: {str(last_error)}"
+    }), 500
 
 
 # --------------------------------------------------
