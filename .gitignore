@@ -1,0 +1,15 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment & Credentials
+.env
+remediation/aws_config.json
+
+# SQLite database
+remediation/feedback.db
+
+# OS generated
+.DS_Store
+Thumbs.db
