@@ -252,17 +252,18 @@ def trigger_demo_load():
     custom_url = request.args.get("url")
     urls_to_try = [
         custom_url,
+        "http://localhost:8080/load",
+        "http://127.0.0.1:8080/load",
         "http://demo-app:8080/load",
         "http://cloudguard-demo-app:8080/load",
-        "http://host.docker.internal:8080/load",
-        "http://localhost:8080/load"
+        "http://host.docker.internal:8080/load"
     ]
     urls_to_try = [u for u in urls_to_try if u]
 
     last_error = None
     for url in urls_to_try:
         try:
-            res = requests.get(url, timeout=6)
+            res = requests.get(url, timeout=10)
             if res.status_code == 200:
                 return jsonify({
                     "success": True,
