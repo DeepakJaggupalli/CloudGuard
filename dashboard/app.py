@@ -3,6 +3,7 @@ import threading
 import requests
 import os
 import sys
+import time
 from pathlib import Path
 from collections import deque, Counter
 from flask import Flask, jsonify, render_template, request
@@ -30,22 +31,24 @@ lock = threading.Lock()
 # --------------------------------------------------
 
 def listen():
-    try:
-        consumer = KafkaConsumer(
-            TOPIC,
-            bootstrap_servers=KAFKA_SERVER,
-            auto_offset_reset="earliest",
-            value_deserializer=lambda b: json.loads(b.decode("utf-8")),
-        )
-        print("Dashboard listening on Kafka topic:", TOPIC)
-        for msg in consumer:
-            data = msg.value
-            if "event_id" not in data:
-                data["event_id"] = f"{data.get('vm_id', 'unknown')}-{data.get('timestamp', 'unknown')}"
-            with lock:
-                records.append(data)
-    except Exception as e:
-        print("Kafka consumer error in dashboard:", e)
+    while True:
+        try:
+            consumer = KafkaConsumer(
+                TOPIC,
+                bootstrap_servers=KAFKA_SERVER,
+                auto_offset_reset="earliest",
+                value_deserializer=lambda b: json.loads(b.decode("utf-8")),
+            )
+            print("Dashboard listening on Kafka topic:", TOPIC)
+            for msg in consumer:
+                data = msg.value
+                if "event_id" not in data:
+                    data["event_id"] = f"{data.get('vm_id', 'unknown')}-{data.get('timestamp', 'unknown')}"
+                with lock:
+                    records.append(data)
+        except Exception as e:
+            print(f"Kafka consumer error in dashboard: {e}. Retrying in 3s...")
+            time.sleep(3)
 
 
 # --------------------------------------------------
