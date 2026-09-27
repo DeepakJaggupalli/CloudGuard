@@ -42,3 +42,28 @@ services:
     depends_on:
       - kafka
     restart: always
+
+  ml-pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: cloudguard-ml-pipeline
+    command: python -u ml/kafka_anomaly_pipeline.py
+    environment:
+      - KAFKA_SERVER=kafka:9093
+    depends_on:
+      - kafka
+    restart: always
+
+  telemetry-producer:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: cloudguard-telemetry-producer
+    command: python -u simulator/telemetry_producer.py
+    environment:
+      - KAFKA_SERVER=kafka:9093
+    depends_on:
+      - kafka
+      - demo-app
+    restart: always

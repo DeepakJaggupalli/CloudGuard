@@ -6,7 +6,10 @@ import sys
 import time
 from pathlib import Path
 from collections import deque, Counter
-from flask import Flask, jsonify, render_template, request
+import queue
+from flask import Flask, jsonify, render_template, request, Response
+
+subscribers = []
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -46,6 +49,11 @@ def listen():
                     data["event_id"] = f"{data.get('vm_id', 'unknown')}-{data.get('timestamp', 'unknown')}"
                 with lock:
                     records.append(data)
+                    for q in list(subscribers):
+                        try:
+                            q.put_nowait(data)
+                        except Exception:
+                            pass
         except Exception as e:
             print(f"Kafka consumer error in dashboard: {e}. Retrying in 3s...")
             time.sleep(3)
@@ -54,6 +62,30 @@ def listen():
 # --------------------------------------------------
 # Dashboard Home
 # --------------------------------------------------
+
+
+# --------------------------------------------------
+# Live Kafka Relay Stream (SSE)
+# --------------------------------------------------
+
+@app.get("/api/stream")
+def stream():
+    def event_stream():
+        q = queue.Queue()
+        with lock:
+            subscribers.append(q)
+        try:
+            yield "data: {\"status\": \"connected\"}\n\n"
+            while True:
+                data = q.get()
+                yield f"data: {json.dumps(data)}\n\n"
+        except GeneratorExit:
+            with lock:
+                if q in subscribers:
+                    subscribers.remove(q)
+
+    return Response(event_stream(), content_type="text/event-stream")
+
 
 @app.get("/")
 def index():
