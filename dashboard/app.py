@@ -21,11 +21,12 @@ from remediation.feedback import init_db, store_feedback, get_feedback
 from remediation.aws_scaling import load_aws_config, save_aws_config
 
 KAFKA_SERVER = os.getenv("KAFKA_SERVER", "localhost:9092")
-TOPIC = "cloudguard-predictions"
+TOPIC = "cloudguard-predictions-v2"
 MAX_RECORDS = 300
 
 app = Flask(__name__, template_folder=".")
 records = deque(maxlen=MAX_RECORDS)
+records.clear()
 lock = threading.Lock()
 
 
@@ -36,10 +37,12 @@ lock = threading.Lock()
 def listen():
     while True:
         try:
+            import uuid
             consumer = KafkaConsumer(
                 TOPIC,
                 bootstrap_servers=KAFKA_SERVER,
-                auto_offset_reset="earliest",
+                auto_offset_reset="latest",
+                group_id=f"dashboard-group-{uuid.uuid4()}",
                 value_deserializer=lambda b: json.loads(b.decode("utf-8")),
             )
             print("Dashboard listening on Kafka topic:", TOPIC)
@@ -115,9 +118,9 @@ def stats():
     anomalies = [x for x in data if x.get("model1") == "anomaly"]
     known_anomalies = [x for x in data if x.get("is_known_anomaly") is True]
     unknown_anomalies = [x for x in data if x.get("model1") == "anomaly" and x.get("is_known_anomaly") is False]
-    pending = [x for x in data if x.get("decision") == "pending_approval"]
+    pending = [x for x in data if x.get("decision") in ["pending_approval", "awaiting_user_approval"] or x.get("approval_status") == "pending"]
     human = [x for x in data if x.get("decision") == "human_intervention"]
-    approved = [x for x in data if x.get("approval") == "approved"]
+    approved = [x for x in data if x.get("approval") in ["approved", "approved_and_executed"] or x.get("execution_status") == "executed"]
     rejected = [x for x in data if x.get("approval") == "rejected"]
 
     priorities = Counter(x.get("priority", "P4") for x in anomalies)
@@ -137,6 +140,12 @@ def stats():
         "p3": priorities.get("P3", 0),
         "p4": priorities.get("P4", 0)
     })
+
+@app.post("/api/reset")
+def reset_records():
+    with lock:
+        records.clear()
+    return jsonify({"success": True, "message": "Telemetry records reset successfully"})
 
 
 # --------------------------------------------------

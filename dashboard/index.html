@@ -851,6 +851,16 @@ function renderTable(predictions) {
     }).join("");
 }
 
+
+function clearHistory() {
+    fetch('/api/reset', { method: 'POST' })
+        .then(r => r.json())
+        .then(res => {
+            showToast("Telemetry history reset!");
+            refreshData();
+        });
+}
+
 function refreshData() {
     Promise.all([
         fetch("/api/stats").then(r => r.json()),
